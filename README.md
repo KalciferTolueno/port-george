@@ -87,6 +87,21 @@ npm run preview    # serves ./dist on :4173
 npm run typecheck  # tsc --noEmit only
 ```
 
+## Docker
+
+Build and run the production image:
+
+```bash
+docker build -t port-george .
+docker run --name port-george -d --restart unless-stopped -p 8080:80 port-george
+```
+
+The site is then available at `http://localhost:8080`. In the VPS proxy,
+forward the public domain to `127.0.0.1:8080`.
+
+The image uses a multi-stage build: Node compiles the Vite project and the
+final image contains only Nginx plus `dist/`.
+
 ## ✦ Bundle (gzipped)
 
 | Chunk       | Gzip     | Notes                            |
