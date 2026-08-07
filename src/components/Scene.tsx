@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { useThree } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -18,6 +18,11 @@ import { ReactiveBackdrop } from './ReactiveBackdrop';
 import type { Theme } from '../types';
 
 const FOCAL_SCALE = 1.8;
+// The phone camera can only see a small arc of the cylinder at once. Keeping
+// a two-column buffer on both sides makes cards available before they enter
+// frame, without asking the mobile compositor to maintain 160 transformed
+// HTML layers that are physically behind the camera.
+const MOBILE_VISIBLE_COLUMN_RADIUS = 2;
 
 interface SceneProps {
   onFocusChange: (index: number | null) => void;
@@ -46,6 +51,21 @@ export function Scene({ onFocusChange, theme, introReady, paused }: SceneProps):
   const isMobile = viewport.width <= 720;
   const cylinderColumns = getCylinderColumns(isMobile);
   const focalPosition = isMobile ? MOBILE_FOCAL_POSITION : FOCAL_POSITION;
+  const [mobileFrontColumn, setMobileFrontColumn] = useState(0);
+  const mobileFrontColumnRef = useRef(0);
+
+  useFrame(() => {
+    if (!isMobile) return;
+    const turn = THREE.MathUtils.euclideanModulo(
+      cylinderRotationState.current,
+      Math.PI * 2
+    );
+    const nextColumn = Math.round((turn / (Math.PI * 2)) * cylinderColumns) % cylinderColumns;
+    if (nextColumn !== mobileFrontColumnRef.current) {
+      mobileFrontColumnRef.current = nextColumn;
+      setMobileFrontColumn(nextColumn);
+    }
+  });
 
   useEffect(() => {
     const background = theme === 'dark' ? '#0d0f15' : '#f5f3ee';
@@ -142,6 +162,7 @@ export function Scene({ onFocusChange, theme, introReady, paused }: SceneProps):
       const row = Math.floor(slot / cylinderColumns);
       return {
         slot,
+        column,
         // A different deterministic offset per row prevents identical
         // horizontal strips while keeping the physical grid aligned.
         photoIndex: (column * 7 + row * 13 + row * row * 3) % photos.length
@@ -252,11 +273,16 @@ export function Scene({ onFocusChange, theme, introReady, paused }: SceneProps):
       })()}
 
       <CylinderRig introReady={introReady} paused={paused}>
-        {cylinderItems.map(({ slot, photoIndex }) => {
+        {cylinderItems.map(({ slot, photoIndex, column }) => {
           // The focal image (and its copy while closing) is already in
           // front. Do not repeat it on the cylinder, otherwise it competes
           // with the central card or creates a ghost while fading out.
           if (photoIndex === focusedIndex) return null;
+          const columnDistance = Math.min(
+            Math.abs(column - mobileFrontColumn),
+            cylinderColumns - Math.abs(column - mobileFrontColumn)
+          );
+          if (isMobile && columnDistance > MOBILE_VISIBLE_COLUMN_RADIUS) return null;
           const photo = photos[photoIndex];
           const entry = layout[slot] ?? layout[0];
           const isReturning = photoIndex === returningIndex && slot === returningSlot;

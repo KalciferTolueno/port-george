@@ -15,11 +15,28 @@ import type { Theme } from './types';
 
 const MIN_LOADER_MS = 700;
 
+function useCompactViewport(): boolean {
+  const [compact, setCompact] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 720px)').matches
+  );
+
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 720px)');
+    const sync = (): void => setCompact(query.matches);
+    sync();
+    query.addEventListener('change', sync);
+    return () => query.removeEventListener('change', sync);
+  }, []);
+
+  return compact;
+}
+
 export default function App(): JSX.Element {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const [minTimePassed, setMinTimePassed] = useState(false);
   const [loadingComplete, setLoadingComplete] = useState(false);
   const [view, setView] = useState<'home' | 'gallery'>('home');
+  const compactViewport = useCompactViewport();
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== 'undefined' && window.localStorage.getItem('george-array-theme') === 'light') {
       return 'light';
@@ -60,7 +77,10 @@ export default function App(): JSX.Element {
       >
       <Canvas
         camera={{ position: [0, 0, 0], fov: 50 }}
-        dpr={[1, 2]}
+        // A 1:1 drawing buffer on compact screens looks identical for this
+        // mostly DOM-based gallery, while avoiding an oversized WebGL surface
+        // that can make Android's compositor show tiled artefacts.
+        dpr={compactViewport ? 1 : [1, 2]}
         gl={{
           antialias: true,
           alpha: false,
