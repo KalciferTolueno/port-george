@@ -10,11 +10,11 @@ export interface CloudEntry {
 
 /** Position of the central focal photo, just in front of the cylinder wall. */
 export const FOCAL_POSITION: [number, number, number] = [0, 0, -23];
-export const MOBILE_FOCAL_POSITION: [number, number, number] = [0, 0, -30];
+export const MOBILE_FOCAL_POSITION: [number, number, number] = [0, 0, -31];
 export const CYLINDER_COLUMNS = 28;
 
 export function getCylinderColumns(mobile: boolean): number {
-  return mobile ? 40 : CYLINDER_COLUMNS;
+  return mobile ? 32 : CYLINDER_COLUMNS;
 }
 
 /**
@@ -28,14 +28,12 @@ export function generateCylinderLayout(
 ): CloudEntry[] {
   const rand = mulberry32(seed);
   const layout: CloudEntry[] = [];
-  const radius = mobile ? 32 : 26;
+  const radius = mobile ? 30 : 26;
   const columns = getCylinderColumns(mobile);
   const rows = Math.ceil(count / columns);
   // Identical padding in both directions: one row gap equals the arc gap
   // between adjacent columns on the cylinder surface.
-  const rowGap = mobile
-    ? (Math.PI * 2 * 36) / columns
-    : (Math.PI * 2 * radius) / columns;
+  const rowGap = (Math.PI * 2 * radius) / columns;
 
   for (let i = 0; i < count; i++) {
     const column = i % columns;

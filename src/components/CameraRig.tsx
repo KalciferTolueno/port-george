@@ -17,7 +17,7 @@ export function CameraRig(): null {
     // reserved for hover/click interactions and never changes the framing.
     targetPos.current.set(0, 0, 0);
     camera.position.lerp(targetPos.current, Math.min(1, dt * 2.5));
-    camera.lookAt(0, 0, viewport.width <= 720 ? -34 : -25.5);
+    camera.lookAt(0, 0, viewport.width <= 720 ? -36 : -25.5);
   });
 
   return null;
