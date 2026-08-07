@@ -10,21 +10,32 @@ export interface CloudEntry {
 
 /** Position of the central focal photo, just in front of the cylinder wall. */
 export const FOCAL_POSITION: [number, number, number] = [0, 0, -23];
+export const MOBILE_FOCAL_POSITION: [number, number, number] = [0, 0, -30];
 export const CYLINDER_COLUMNS = 28;
+
+export function getCylinderColumns(mobile: boolean): number {
+  return mobile ? 40 : CYLINDER_COLUMNS;
+}
 
 /**
  * Build a cylindrical gallery layout. Each card sits on the surface of
  * a vertical cylinder and faces outward from its axis.
  */
-export function generateCylinderLayout(count: number, seed: number): CloudEntry[] {
+export function generateCylinderLayout(
+  count: number,
+  seed: number,
+  mobile = false
+): CloudEntry[] {
   const rand = mulberry32(seed);
   const layout: CloudEntry[] = [];
-  const radius = 26;
-  const columns = CYLINDER_COLUMNS;
+  const radius = mobile ? 32 : 26;
+  const columns = getCylinderColumns(mobile);
   const rows = Math.ceil(count / columns);
   // Identical padding in both directions: one row gap equals the arc gap
   // between adjacent columns on the cylinder surface.
-  const rowGap = (Math.PI * 2 * radius) / columns;
+  const rowGap = mobile
+    ? (Math.PI * 2 * 36) / columns
+    : (Math.PI * 2 * radius) / columns;
 
   for (let i = 0; i < count; i++) {
     const column = i % columns;
@@ -59,18 +70,21 @@ export function generateCylinderLayout(count: number, seed: number): CloudEntry[
  * Intro order from the visual centre outward. The first six slots are the
  * two middle rows and the three nearest columns on either side of the front.
  */
-export function createCylinderIntroRanks(count: number): number[] {
-  const rows = Math.ceil(count / CYLINDER_COLUMNS);
+export function createCylinderIntroRanks(
+  count: number,
+  columns = CYLINDER_COLUMNS
+): number[] {
+  const rows = Math.ceil(count / columns);
   const centreRow = (rows - 1) / 2;
   const slots = Array.from({ length: count }, (_, slot) => slot);
 
   slots.sort((a, b) => {
-    const rowA = Math.floor(a / CYLINDER_COLUMNS);
-    const rowB = Math.floor(b / CYLINDER_COLUMNS);
-    const colA = a % CYLINDER_COLUMNS;
-    const colB = b % CYLINDER_COLUMNS;
-    const columnDistanceA = Math.min(colA, CYLINDER_COLUMNS - colA);
-    const columnDistanceB = Math.min(colB, CYLINDER_COLUMNS - colB);
+    const rowA = Math.floor(a / columns);
+    const rowB = Math.floor(b / columns);
+    const colA = a % columns;
+    const colB = b % columns;
+    const columnDistanceA = Math.min(colA, columns - colA);
+    const columnDistanceB = Math.min(colB, columns - colB);
     const rowDistanceA = Math.abs(rowA - centreRow);
     const rowDistanceB = Math.abs(rowB - centreRow);
     const scoreA = columnDistanceA + Math.max(0, rowDistanceA - 0.5) * 3;

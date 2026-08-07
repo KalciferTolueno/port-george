@@ -45,7 +45,7 @@ export function ReactiveBackdrop({ theme }: ReactiveBackdropProps): JSX.Element 
   }, [theme]);
 
   return (
-    <group ref={groupRef} position={[0, 0, -31]} renderOrder={-10}>
+    <group ref={groupRef} position={[0, 0, -48]} renderOrder={-10}>
       <mesh renderOrder={-10}>
         <planeGeometry args={[44, 32]} />
         <shaderMaterial

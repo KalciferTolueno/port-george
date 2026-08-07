@@ -86,6 +86,9 @@ export function FloatingMenu({ theme, onThemeChange, onNavigate }: FloatingMenuP
         aria-label={open ? 'Close navigation menu' : 'Open navigation menu'}
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
         whileTap={{ scale: 0.92 }}
       >
         <svg viewBox="0 0 32 32" aria-hidden="true">

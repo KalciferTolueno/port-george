@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
+import { motion } from 'framer-motion';
 
 const AUDIO_SOURCE = '/audio/track.mp3';
 
@@ -47,12 +48,15 @@ export function MusicToggle(): JSX.Element {
   return (
     <div className={`music-control${playing ? ' is-playing' : ''}`}>
       <audio ref={audioRef} src={AUDIO_SOURCE} loop preload="metadata" />
-      <button
+      <motion.button
         type="button"
         className="music-toggle"
         aria-label={playing ? 'Pause music' : 'Play music'}
         aria-pressed={playing}
         onClick={() => void toggle()}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
       >
         {playing ? (
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -63,7 +67,7 @@ export function MusicToggle(): JSX.Element {
             <path d="m8 4 11 8-11 8z" />
           </svg>
         )}
-      </button>
+      </motion.button>
 
       <div className="mini-player" aria-hidden="true">
         <span className="mini-player__eyebrow">Soundtrack</span>

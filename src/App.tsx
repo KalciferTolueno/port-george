@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { AnimatePresence, motion } from 'framer-motion';
 import * as THREE from 'three';
@@ -8,7 +8,6 @@ import { Brand } from './components/Brand';
 import { Loader } from './components/Loader';
 import { FloatingMenu } from './components/FloatingMenu';
 import { CursorLens } from './components/CursorLens';
-import { MusicToggle } from './components/MusicToggle';
 import { GallerySection } from './components/GallerySection';
 import { photos } from './data/photos';
 import { useImageProgress } from './hooks/useImageProgress';
@@ -19,6 +18,7 @@ const MIN_LOADER_MS = 700;
 export default function App(): JSX.Element {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const [minTimePassed, setMinTimePassed] = useState(false);
+  const [loadingComplete, setLoadingComplete] = useState(false);
   const [view, setView] = useState<'home' | 'gallery'>('home');
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== 'undefined' && window.localStorage.getItem('george-array-theme') === 'light') {
@@ -44,6 +44,7 @@ export default function App(): JSX.Element {
   }, []);
 
   const loaderVisible = !allLoaded || !minTimePassed;
+  const handleLoadingComplete = useCallback(() => setLoadingComplete(true), []);
 
   return (
     <div className="app" id="gallery">
@@ -96,19 +97,20 @@ export default function App(): JSX.Element {
 
       <div className="camera-vignette" aria-hidden="true" />
       <Brand isFocused={focusedIndex !== null} />
-      <Loader visible={loaderVisible} />
+      <Loader visible={loaderVisible} onComplete={handleLoadingComplete} />
       </motion.div>
 
       <AnimatePresence mode="wait">
         {view === 'gallery' && <GallerySection onBack={() => setView('home')} />}
       </AnimatePresence>
 
-      <FloatingMenu
-        theme={theme}
-        onThemeChange={setTheme}
-        onNavigate={setView}
-      />
-      <MusicToggle />
+      {loadingComplete && (
+        <FloatingMenu
+          theme={theme}
+          onThemeChange={setTheme}
+          onNavigate={setView}
+        />
+      )}
       <CursorLens />
     </div>
   );

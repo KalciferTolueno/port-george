@@ -7,7 +7,9 @@ import { photos } from '../data/photos';
 import {
   generateCylinderLayout,
   createCylinderIntroRanks,
-  FOCAL_POSITION
+  getCylinderColumns,
+  FOCAL_POSITION,
+  MOBILE_FOCAL_POSITION
 } from '../utils/layout';
 import { PhotoNode } from './PhotoNode';
 import { CameraRig } from './CameraRig';
@@ -40,6 +42,10 @@ export function Scene({ onFocusChange, theme, introReady, paused }: SceneProps):
   const lensTimerRef = useRef<number | null>(null);
 
   const scene = useThree((s) => s.scene);
+  const viewport = useThree((s) => s.size);
+  const isMobile = viewport.width <= 720;
+  const cylinderColumns = getCylinderColumns(isMobile);
+  const focalPosition = isMobile ? MOBILE_FOCAL_POSITION : FOCAL_POSITION;
 
   useEffect(() => {
     const background = theme === 'dark' ? '#0d0f15' : '#f5f3ee';
@@ -109,10 +115,16 @@ export function Scene({ onFocusChange, theme, introReady, paused }: SceneProps):
   // Keep the cylinder visually dense even when the photographer has a
   // small collection. Extra slots reuse images in a spaced sequence rather
   // than leaving large empty columns.
-  const cylinderCount = Math.max(112, photos.length);
-  const layout = useMemo(() => generateCylinderLayout(cylinderCount, 7), [cylinderCount]);
+  const cylinderCount = Math.max(
+    isMobile ? cylinderColumns * 5 : cylinderColumns * 4,
+    photos.length
+  );
+  const layout = useMemo(
+    () => generateCylinderLayout(cylinderCount, 7, isMobile),
+    [cylinderCount, isMobile]
+  );
   const introSequence = useMemo(() => {
-    const baseRanks = createCylinderIntroRanks(cylinderCount);
+    const baseRanks = createCylinderIntroRanks(cylinderCount, cylinderColumns);
     const visibleSlots = Array.from({ length: cylinderCount }, (_, slot) => slot)
       // Camera looks toward -Z, so only the front hemisphere participates
       // in the entrance animation.
@@ -123,16 +135,28 @@ export function Scene({ onFocusChange, theme, introReady, paused }: SceneProps):
       rankBySlot[slot] = rank;
     });
     return { rankBySlot, total: visibleSlots.length };
-  }, [cylinderCount, layout]);
+  }, [cylinderCount, cylinderColumns, layout]);
   const cylinderItems = useMemo(
-    () => Array.from({ length: cylinderCount }, (_, slot) => ({
-      slot,
-      photoIndex: (slot * 7) % photos.length
-    })),
-    [cylinderCount]
+    () => Array.from({ length: cylinderCount }, (_, slot) => {
+      const column = slot % cylinderColumns;
+      const row = Math.floor(slot / cylinderColumns);
+      return {
+        slot,
+        // A different deterministic offset per row prevents identical
+        // horizontal strips while keeping the physical grid aligned.
+        photoIndex: (column * 7 + row * 13 + row * row * 3) % photos.length
+      };
+    }),
+    [cylinderCount, cylinderColumns]
   );
 
   const handleSelect = useCallback((i: number, slot?: number) => {
+    // While a focal image is open, any other card is considered an outside
+    // click. Close the current image instead of opening a second one.
+    if (focusedIndex !== null && focusedIndex !== i) {
+      closeFocal();
+      return;
+    }
     if (focusedIndex === i) {
       closeFocal();
       return;
@@ -154,7 +178,10 @@ export function Scene({ onFocusChange, theme, introReady, paused }: SceneProps):
         position: [position.x, position.y, position.z],
         rotation: [
           entry.rotation[0],
-          entry.rotation[1] + cylinderRotationState.current,
+          THREE.MathUtils.euclideanModulo(
+            entry.rotation[1] + cylinderRotationState.current + Math.PI,
+            Math.PI * 2
+          ) - Math.PI,
           entry.rotation[2]
         ],
         scale: entry.scale
@@ -205,7 +232,7 @@ export function Scene({ onFocusChange, theme, introReady, paused }: SceneProps):
           <PhotoNode
             key={`focal-${photo.src}`}
             photo={photo}
-            targetPosition={FOCAL_POSITION}
+            targetPosition={focalPosition}
             targetRotation={[0, 0, 0]}
             targetScale={FOCAL_SCALE}
             isFocal
@@ -249,7 +276,7 @@ export function Scene({ onFocusChange, theme, introReady, paused }: SceneProps):
               introTotal={introSequence.total}
               paused={paused}
               initialPosition={isReturning
-                ? FOCAL_POSITION
+                ? focalPosition
                 : isReturningCopy || isInstantRestore
                   ? entry.position
                   : undefined}

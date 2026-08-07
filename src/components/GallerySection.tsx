@@ -19,13 +19,11 @@ export function GallerySection({ onBack }: GallerySectionProps): JSX.Element {
       <header className="gallery-view__header">
         <button type="button" className="gallery-view__back" onClick={onBack}>
           <span aria-hidden="true">←</span>
-          <span>Back to cylinder</span>
+          <span>Back</span>
         </button>
         <div className="gallery-view__title">
-          <span className="gallery-view__eyebrow">Selected works</span>
           <h1>Gallery</h1>
         </div>
-        <span className="gallery-view__count">{photos.length} works</span>
       </header>
 
       <div className="gallery-grid">

@@ -15,19 +15,20 @@ interface CylinderIntroContextValue {
 
 export const CylinderIntroContext = createContext<CylinderIntroContextValue | null>(null);
 
-const INTRO_DURATION = 1.6;
+const INTRO_DURATION = 2.4;
 const FINAL_ROTATION_SPEED = 0.16;
 export const cylinderRotationState = { current: 0 };
+const cylinderIntroState = { progress: 0, finished: false };
 
 /** Rotates the cylinder continuously and lets the wheel steer it. */
 export function CylinderRig({ children, introReady, paused }: CylinderRigProps): JSX.Element {
   const groupRef = useRef<THREE.Group>(null);
-  const rotation = useRef(0);
-  const targetRotation = useRef(0);
+  const rotation = useRef(cylinderRotationState.current);
+  const targetRotation = useRef(cylinderRotationState.current);
   const lastInteraction = useRef(0);
   const introStartedAt = useRef<number | null>(null);
-  const introFinished = useRef(false);
-  const introProgress = useRef(0);
+  const introFinished = useRef(cylinderIntroState.finished);
+  const introProgress = useRef(cylinderIntroState.progress);
   const pausedAt = useRef<number | null>(null);
   const introContext = useMemo(() => ({ progress: introProgress, rotation }), []);
 
@@ -59,12 +60,20 @@ export function CylinderRig({ children, introReady, paused }: CylinderRigProps):
 
     const dt = Math.min(0.05, rawDt);
 
+    if (introFinished.current) group.rotation.y = rotation.current;
+
     if (!introReady) {
+      if (cylinderIntroState.finished) {
+        group.rotation.y = cylinderRotationState.current;
+        return;
+      }
       introStartedAt.current = null;
       introFinished.current = false;
       rotation.current = 0;
       targetRotation.current = 0;
       cylinderRotationState.current = 0;
+      cylinderIntroState.progress = 0;
+      cylinderIntroState.finished = false;
       group.rotation.y = 0;
       introProgress.current = 0;
       return;
@@ -78,6 +87,7 @@ export function CylinderRig({ children, introReady, paused }: CylinderRigProps):
       const elapsed = (performance.now() - introStartedAt.current) / 1000;
       const progress = THREE.MathUtils.clamp(elapsed / INTRO_DURATION, 0, 1);
       introProgress.current = progress;
+      cylinderIntroState.progress = progress;
       // Rotate the whole cylinder from the first frame. The quadratic ramp
       // starts gently and reaches the normal idle speed at the exact moment
       // the pulse ends, so there is no visible pause between animations.
@@ -88,6 +98,8 @@ export function CylinderRig({ children, introReady, paused }: CylinderRigProps):
       if (progress >= 1) {
         introFinished.current = true;
         introProgress.current = 1;
+        cylinderIntroState.progress = 1;
+        cylinderIntroState.finished = true;
         targetRotation.current = 0;
       }
       if (!introFinished.current) return;

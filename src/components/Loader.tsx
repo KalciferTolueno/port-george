@@ -1,29 +1,38 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useState } from 'react';
 
 interface LoaderProps {
   visible: boolean;
+  onComplete?: () => void;
 }
 
-/**
- * Minimal loader — name in elegant italics + thin progress bar.
- * The bar fills via a CSS keyframe animation while visible.
- */
-export function Loader({ visible }: LoaderProps): JSX.Element {
+/** Initial cover that reveals the home scene from the centre outward. */
+export function Loader({ visible, onComplete }: LoaderProps): JSX.Element | null {
+  const [mounted, setMounted] = useState(visible);
+  const [exiting, setExiting] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      setExiting(false);
+      return;
+    }
+
+    if (!mounted) return;
+    setExiting(true);
+    const timer = window.setTimeout(() => {
+      setMounted(false);
+      onComplete?.();
+    }, 3500);
+    return () => window.clearTimeout(timer);
+  }, [visible, mounted, onComplete]);
+
+  if (!mounted) return null;
+
   return (
-    <AnimatePresence>
-      {visible && (
-        <motion.div
-          className="loader"
-          initial={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.9, ease: 'easeInOut' }}
-        >
-          <div className="loader__inner">
-            <span className="loader__name">George Array</span>
-            <div className="loader__bar" />
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <div className={`loader${exiting ? ' loader--exiting' : ''}`} role="status">
+      <div className="loader__inner">
+        <span className="brand__name loader__name" data-text="George Array">George Array</span>
+      </div>
+    </div>
   );
 }
