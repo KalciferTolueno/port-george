@@ -18,6 +18,8 @@ interface PhotoNodeProps {
   introTotal: number;
   closing?: boolean;
   paused: boolean;
+  /** Keeps the 3D node in sync while its expensive HTML card is off-screen. */
+  showCard?: boolean;
   initialPosition?: [number, number, number];
   initialRotation?: [number, number, number];
   initialScale?: number;
@@ -50,6 +52,7 @@ export function PhotoNode({
   introTotal,
   closing = false,
   paused,
+  showCard = true,
   initialPosition,
   initialRotation,
   initialScale
@@ -236,7 +239,7 @@ export function PhotoNode({
       ref={groupRef}
       rotation={initialRotation}
     >
-      <Html
+      {showCard && <Html
         transform
         center
         distanceFactor={10}
@@ -263,7 +266,7 @@ export function PhotoNode({
             />
           </div>
         </div>
-      </Html>
+      </Html>}
     </group>
   );
 }

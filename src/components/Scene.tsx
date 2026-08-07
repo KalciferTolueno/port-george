@@ -282,7 +282,7 @@ export function Scene({ onFocusChange, theme, introReady, paused }: SceneProps):
             Math.abs(column - mobileFrontColumn),
             cylinderColumns - Math.abs(column - mobileFrontColumn)
           );
-          if (isMobile && columnDistance > MOBILE_VISIBLE_COLUMN_RADIUS) return null;
+          const showCard = !isMobile || columnDistance <= MOBILE_VISIBLE_COLUMN_RADIUS;
           const photo = photos[photoIndex];
           const entry = layout[slot] ?? layout[0];
           const isReturning = photoIndex === returningIndex && slot === returningSlot;
@@ -301,6 +301,7 @@ export function Scene({ onFocusChange, theme, introReady, paused }: SceneProps):
               introIndex={introSequence.rankBySlot[slot] ?? -1}
               introTotal={introSequence.total}
               paused={paused}
+              showCard={showCard}
               initialPosition={isReturning
                 ? focalPosition
                 : isReturningCopy || isInstantRestore
