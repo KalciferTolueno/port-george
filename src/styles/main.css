@@ -836,6 +836,13 @@ canvas {
   .music-control .mini-player {
     width: min(190px, calc(100vw - 90px));
   }
+  /* Mobile-only compositor hints: isolate each card so a single matrix3d
+     update does not invalidate sibling layers. Desktop is left untouched
+     to preserve its existing paint pipeline. */
+  .photo-hit {
+    will-change: transform;
+    contain: paint;
+  }
 }
 
 @media (pointer: coarse) {

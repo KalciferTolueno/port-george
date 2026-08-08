@@ -269,6 +269,7 @@ export function Scene({ onFocusChange, theme, introReady, paused }: SceneProps):
             introTotal={cylinderCount}
             closing={false}
             paused={paused}
+            isMobile={isMobile}
             initialPosition={focusStart?.position}
             initialRotation={focusStart?.rotation}
             initialScale={focusStart?.scale}
@@ -316,6 +317,7 @@ export function Scene({ onFocusChange, theme, introReady, paused }: SceneProps):
               introTotal={introSequence.total}
               paused={paused}
               visibilityState={visibilityState}
+              isMobile={isMobile}
               initialPosition={isReturning
                 ? focalPosition
                 : isReturningCopy || isInstantRestore

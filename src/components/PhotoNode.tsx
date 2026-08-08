@@ -27,6 +27,8 @@ interface PhotoNodeProps {
    * `<Html>` subtree entirely.
    */
   visibilityState?: PhotoVisibilityState;
+  /** Mobile viewport flag — enables buffer-card skip optimization. */
+  isMobile?: boolean;
   initialPosition?: [number, number, number];
   initialRotation?: [number, number, number];
   initialScale?: number;
@@ -60,6 +62,7 @@ export function PhotoNode({
   closing = false,
   paused,
   visibilityState = 'visible',
+  isMobile = false,
   initialPosition,
   initialRotation,
   initialScale
@@ -102,6 +105,18 @@ export function PhotoNode({
     // Secondary cards stay locked in their grid slots. Only the selected
     // focal card gets a restrained floating motion.
     const introProgress = introContext?.progress.current ?? (introReady ? 1 : 0);
+
+    // Mobile-only optimization: once the intro has finished, buffer cards
+    // are CSS-hidden so the browser never composites their HTML layer. We
+    // can skip the entire per-frame transform update. NOTE: this stops
+    // `PhotoNode`'s own writes (opacity, brightness), but drei's internal
+    // `<Html transform>` continues writing `matrix3d(...)` because it reads
+    // the parent group's `matrixWorld` directly. See the render path below
+    // — for mobile + buffer we unmount the entire `<Html>` subtree to
+    // eliminate those writes. The trade-off is a brief image re-decode when
+    // a buffer card transitions to visible (acceptable: preloaded URLs +
+    // `decoding="async"` make this one-frame).
+    if (visibilityState === 'buffer' && isMobile && introProgress >= 1) return;
     // The intro is a radial wave: central ranks reveal first, outer ranks
     // follow as the pulse expands toward the edges.
     const waveStart = introIndex >= 0
@@ -244,7 +259,17 @@ export function PhotoNode({
       ref={groupRef}
       rotation={initialRotation}
     >
-      {visibilityState !== 'hidden' && (
+      {/*
+        Mobile + buffer: do not mount the drei `<Html>` subtree. drei writes
+        a fresh `matrix3d(...)` to its internal wrapper on every frame
+        regardless of the photo card's CSS visibility, and 20 cards doing
+        that at 60fps saturates the mobile compositor and causes flicker.
+        Skipping the mount eliminates those writes entirely. When the card
+        transitions back to visible, the URL is already preloaded by
+        `useImageProgress` and `decoding="async"` keeps the re-decode
+        non-blocking, so the entrance is one frame, not a pop.
+      */}
+      {visibilityState !== 'hidden' && (visibilityState === 'visible' || !isMobile) && (
         <Html
           transform
           center

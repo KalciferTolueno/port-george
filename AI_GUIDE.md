@@ -34,14 +34,25 @@ Brave para Android.
 - `Scene.tsx` calcula la columna frontal según la rotación real del cilindro y
   clasifica cada celda en tres estados (`visible` / `buffer` / `hidden`) según
   la distancia al frente. Hay cinco columnas visibles (`≤2`) y dos columnas
-  buffer a cada lado (`3-4`) que permanecen montadas con `visibility:hidden`
-  para conservar el bitmap decoded. Resultado: ~45 tarjetas HTML en móvil en
-  lugar de las 160 que componía antes.
-- Los `PhotoNode` siguen existiendo y se actualizan en Three.js aunque su
-  tarjeta esté fuera de cámara. La prop `visibilityState` controla solo el
-  subtree `Html`: `hidden` lo desmonta, `buffer` lo mantiene oculto y
-  `visible` lo muestra. Por eso una foto vuelve a pantalla ya posicionada y
-  sin el parpadeo de una reanimación desde el centro.
+  buffer a cada lado (`3-4`).
+- En **desktop**, todas las celdas `visible` y `buffer` mantienen su `<Html>`
+  montado. Los nodos 3D existen en los tres estados.
+- En **mobile** (≤720px), las celdas en `buffer` **no montan** el subtree
+  `<Html>` (drei `<Html transform>` escribe un `matrix3d(...)` a un wrapper
+  interno cada frame, y 20 cards haciendo eso a 60fps satura el compositor
+  de Android). Cuando la tarjeta entra al arco visible, el `<Html>` se monta
+  con `decoding="async"` y la imagen se decodifica desde la caché de
+  `useImageProgress` en un único frame, sin pop perceptible. Resultado: 25
+  tarjetas HTML en mobile (vs. 45 con buffer).
+- `PhotoNode` también recibe un `isMobile` y, tras terminar la intro,
+  omite su `useFrame` para tarjetas en buffer. Eso evita las escrituras de
+  `opacity` y `--photo-brightness` que de otro modo se aplicarían a capas
+  ocultas.
+- El CSS mobile (`.photo-hit`) añade `will-change: transform` y
+  `contain: paint` dentro de `@media (max-width: 720px)` para que el
+  compositor de Android trate cada tarjeta como una capa aislada y no
+  re-rasterice vecinos cuando una sola cambia. **No** se aplican en
+  escritorio para no afectar su pipeline de paint.
 - Las fuentes originales son locales: `public/fonts/grenze-gotisch-latin.woff2`
   y `public/fonts/unifraktur-cook-latin.woff2`. `main.css` las declara con
   `@font-face`; no reintroducir enlaces a Google Fonts en `index.html`.
@@ -159,7 +170,9 @@ const MOBILE_VISIBLE_COLUMN_RADIUS = 2;  // 5 columnas visibles
 const MOBILE_BUFFER_COLUMN_RADIUS = 4;   // 2 columnas buffer por lado
 ```
 
-El resto de los nodos continúa actualizándose en 3D pero sin `<Html>`.
+El resto de los nodos continúa actualizándose en 3D. En mobile las tarjetas
+buffer no montan su `<Html>` (ver sección "Cambios Recientes"); en desktop
+sí lo mantienen.
 
 Para cambiar la distribución:
 
