@@ -5,7 +5,27 @@ responsabilidades de cada componente y las variables visuales modificables.
 
 An immersive **3D cloud of suspended photographs** for a photography
 portfolio. Built with React 18, React Three Fiber, Three.js and Framer
-Motion, bundled with Vite, deployable as static files on any VPS.
+Motion, bundled with Vite, deployable as a Docker container on EasyPanel
+or any container host.
+
+## Mobile rendering and typography
+
+The visual design is preserved on mobile while the rendering workload is
+adapted for Chrome and Brave. The app keeps the 3D cylinder synchronised, but
+only mounts the HTML photo cards that can enter the current viewport. A
+two-column buffer on each side of the visible arc keeps the decoded
+bitmaps warm, so cards never pop when they cross the threshold.
+
+- Mobile canvas: `dpr=1`; desktop: `dpr={[1, 2]}`.
+- Mobile viewport: five visible cylinder columns plus a four-column
+  buffer (up to 45 HTML photo cards mounted, ~20 hidden via CSS).
+- Mobile cursor (`mix-blend-mode: difference`) is disabled to keep the
+  Android compositor stable.
+- The original `Grenze Gotisch` and `UnifrakturCook` fonts are self-hosted in
+  `public/fonts/`, so privacy blocking or an unavailable Google Fonts service
+  cannot replace the portfolio typography.
+
+For implementation details and modification rules, see [AI_GUIDE.md](AI_GUIDE.md).
 
 ## ✦ Concept
 
@@ -35,7 +55,7 @@ subtle "01 / 26" counter (bottom-right) and a single italic hint.
 | Animations (3D)    | `useFrame` + `THREE.MathUtils.damp`     |
 | Language           | TypeScript 5 (strict)                   |
 | Bundler            | Vite 5                                  |
-| Deployment         | Static (`dist/`) on any Nginx host      |
+| Deployment         | Docker container on EasyPanel           |
 
 ## ✦ Project structure
 
@@ -65,10 +85,8 @@ subtle "01 / 26" counter (bottom-right) and a single italic hint.
 │  │  └─ random.ts               # mulberry32 seeded PRNG
 │  └─ styles/
 │     └─ main.css                # base + typography + HTML overlays
-├─ deploy/                       # VPS deploy helper files
-│  ├─ nginx.conf                 # nginx server block
-│  ├─ deploy.sh                  # build + rsync + reload
-│  └─ README.md                  # step-by-step VPS guide
+├─ deploy/                       # EasyPanel deploy notes
+│  └─ README.md                  # one-step setup for EasyPanel
 ├─ tsconfig.json
 ├─ vite.config.ts
 ├─ package.json
@@ -93,14 +111,20 @@ Build and run the production image:
 
 ```bash
 docker build -t port-george .
-docker run --name port-george -d --restart unless-stopped -p 8080:80 port-george
+docker run --name port-george -d --restart unless-stopped -p 8080:3000 port-george
 ```
 
-The site is then available at `http://localhost:8080`. In the VPS proxy,
-forward the public domain to `127.0.0.1:8080`.
+The site is then available at `http://localhost:8080`.
 
-The image uses a multi-stage build: Node compiles the Vite project and the
-final image contains only Nginx plus `dist/`.
+The image is a multi-stage build: Node compiles the Vite project, then a
+small `node:alpine` runtime serves the static `dist/` with `serve`
+(SPA fallback included). The container listens on internal port `3000` —
+no nginx layer is needed because EasyPanel already terminates TLS in
+front. See [`deploy/README.md`](deploy/README.md) for the one-click
+EasyPanel flow.
+
+The Vite development server (`npm run dev`) uses port `5173` only for
+local testing.
 
 ## ✦ Bundle (gzipped)
 
@@ -184,18 +208,12 @@ Pass a different `seed` to `generateCloudLayout()` in
 `src/components/Scene.tsx` to completely reshuffle the cloud — same
 seed reproduces the same cloud.
 
-## ✦ Deploying to a VPS
+## ✦ Deploying to EasyPanel
 
-See [`deploy/README.md`](deploy/README.md). Short version:
-
-```bash
-npm ci
-npm run build
-VPS_HOST=deploy@yourdomain.com ./deploy/deploy.sh
-```
-
-Don't forget to substitute `example.com` with your real domain in
-`deploy/nginx.conf` before the first deployment.
+See [`deploy/README.md`](deploy/README.md). Short version: point
+EasyPanel at this GitHub repository, expose container port `3000`, and
+turn on the HTTPS toggle. Every push to the configured branch triggers a
+rebuild.
 
 ## ✦ Browser support
 
