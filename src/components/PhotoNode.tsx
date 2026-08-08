@@ -301,6 +301,8 @@ export function PhotoNode({
                 alt={photo.alt}
                 decoding="async"
                 draggable={false}
+                width={CARD_WIDTH}
+                height={CARD_HEIGHT}
               />
             </div>
           </div>

@@ -2,7 +2,9 @@
   font-family: 'Grenze Gotisch';
   font-style: normal;
   font-weight: 400 700;
-  font-display: block;
+  /* swap so the brand text renders immediately with the system fallback
+     and only swaps to the gothic font when it loads. Prevents FOIT. */
+  font-display: swap;
   src: url('/fonts/grenze-gotisch-latin.woff2') format('woff2');
 }
 
@@ -10,7 +12,10 @@
   font-family: 'UnifrakturCook';
   font-style: normal;
   font-weight: 700;
-  font-display: block;
+  /* swap: UnifrakturCook only renders in the loader name and the focal
+     brand. Showing the fallback until the font arrives is fine and
+     avoids the invisible-text period. */
+  font-display: swap;
   src: url('/fonts/unifraktur-cook-latin.woff2') format('woff2');
 }
 

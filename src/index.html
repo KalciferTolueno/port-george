@@ -26,7 +26,11 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="canonical" href="https://example.com/" />
 
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <!-- Preload the two critical fonts so the brand and the loader name
+       render with the right typography on the first frame instead of a
+       flash of system fallback. crossorigin is required for font preloads. -->
+  <link rel="preload" href="/fonts/grenze-gotisch-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/unifraktur-cook-latin.woff2" as="font" type="font/woff2" crossorigin>
 </head>
 <body>
   <div id="root"></div>
