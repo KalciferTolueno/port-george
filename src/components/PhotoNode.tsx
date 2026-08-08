@@ -6,6 +6,8 @@ import * as THREE from 'three';
 import type { Photo } from '../data/photos';
 import { CylinderIntroContext } from './CylinderRig';
 
+type PhotoVisibilityState = 'visible' | 'buffer' | 'hidden';
+
 interface PhotoNodeProps {
   photo: Photo;
   targetPosition: [number, number, number];
@@ -18,8 +20,13 @@ interface PhotoNodeProps {
   introTotal: number;
   closing?: boolean;
   paused: boolean;
-  /** Keeps the 3D node in sync while its expensive HTML card is off-screen. */
-  showCard?: boolean;
+  /**
+   * Controls the HTML card without unmounting the 3D node.
+   * `visible` keeps the card on screen, `buffer` keeps it mounted but hidden
+   * (so its decoded bitmap survives the rotation), `hidden` unmounts the
+   * `<Html>` subtree entirely.
+   */
+  visibilityState?: PhotoVisibilityState;
   initialPosition?: [number, number, number];
   initialRotation?: [number, number, number];
   initialScale?: number;
@@ -52,7 +59,7 @@ export function PhotoNode({
   introTotal,
   closing = false,
   paused,
-  showCard = true,
+  visibilityState = 'visible',
   initialPosition,
   initialRotation,
   initialScale
@@ -66,7 +73,6 @@ export function PhotoNode({
   const closeProgressRef = useRef(0);
   const initialPlacedRef = useRef(false);
   const initialWorldPositionRef = useRef(new THREE.Vector3());
-  const lightFrameRef = useRef(0);
   const brightnessRef = useRef(1);
   const glowRef = useRef(0);
   const targetBrightnessRef = useRef(1);
@@ -156,15 +162,14 @@ export function PhotoNode({
     // Approximate the lamp's incidence on an HTML card. The 3D light is
     // present in the scene as well, while these CSS values illuminate the
     // actual DOM image that the browser renders.
-    const lightFrame = lightFrameRef.current++;
-    const updateLight = !introContext ||
-      (introProgress >= 1 && (lightFrame + Math.max(0, introIndex)) % 6 === 0);
-
-    if (cardRef.current && updateLight) {
-      // Reveal cards progressively as they approach their final slots.
-      // The slot-based delay creates a subtle wave through the spiral.
+    if (cardRef.current) {
+      // Opacity is written every frame so the intro radial wave actually
+      // fades each card in. Without this the DOM keeps the default opacity
+      // (1) and cards pop into view when their scale becomes visible.
       cardRef.current.style.opacity = (animationOpacity * closeFactor).toFixed(3);
+    }
 
+    if (cardRef.current && (!introContext || introProgress >= 1)) {
       group.getWorldPosition(worldPositionRef.current);
       lightDirectionRef.current
         .copy(LAMP_POSITION)
@@ -239,34 +244,43 @@ export function PhotoNode({
       ref={groupRef}
       rotation={initialRotation}
     >
-      {showCard && <Html
-        transform
-        center
-        distanceFactor={10}
-        // The focal card must always sit above every cylinder duplicate.
-        zIndexRange={isFocal ? [2000, 2000] : [100, 0]}
-        style={{ pointerEvents: 'auto' }}
-      >
-        <div
-          className="photo-hit"
-          style={{ width: CARD_WIDTH, height: CARD_HEIGHT }}
-          onPointerEnter={handleEnter}
-          onPointerLeave={handleLeave}
-          onClick={handleClick}
+      {visibilityState !== 'hidden' && (
+        <Html
+          transform
+          center
+          distanceFactor={10}
+          // The focal card must always sit above every cylinder duplicate.
+          zIndexRange={isFocal ? [2000, 2000] : [100, 0]}
+          style={{
+            pointerEvents: visibilityState === 'visible' ? 'auto' : 'none'
+          }}
         >
           <div
-            ref={cardRef}
-            className={`photo-card${isFocal ? ' photo-card--focal' : ''}${hovered ? ' photo-card--hovered' : ''}`}
-            style={{ width: CARD_WIDTH, height: CARD_HEIGHT }}
+            className="photo-hit"
+            style={{
+              width: CARD_WIDTH,
+              height: CARD_HEIGHT,
+              visibility: visibilityState === 'buffer' ? 'hidden' : 'visible'
+            }}
+            onPointerEnter={handleEnter}
+            onPointerLeave={handleLeave}
+            onClick={handleClick}
           >
-            <img
-              src={photo.src}
-              alt={photo.alt}
-              draggable={false}
-            />
+            <div
+              ref={cardRef}
+              className={`photo-card${isFocal ? ' photo-card--focal' : ''}${hovered ? ' photo-card--hovered' : ''}`}
+              style={{ width: CARD_WIDTH, height: CARD_HEIGHT }}
+            >
+              <img
+                src={photo.src}
+                alt={photo.alt}
+                decoding="async"
+                draggable={false}
+              />
+            </div>
           </div>
-        </div>
-      </Html>}
+        </Html>
+      )}
     </group>
   );
 }

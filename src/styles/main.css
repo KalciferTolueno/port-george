@@ -167,8 +167,10 @@ canvas {
   box-shadow: var(--shadow-card);
   cursor: none;
   transform: translateZ(0);
-  transition: box-shadow 500ms var(--ease), border-color 500ms var(--ease),
-              transform 500ms var(--ease);
+  /* `transform` is updated every frame by drei <Html transform>, so any CSS
+     transition here fights with the matrix3d and produces a visible jitter
+     on hover. Box-shadow and border-color remain animated. */
+  transition: box-shadow 500ms var(--ease), border-color 500ms var(--ease);
   user-select: none;
   --photo-brightness: 1;
   --photo-lamp-glow: 0;
@@ -388,8 +390,8 @@ canvas {
   pointer-events: none;
   background: var(--focus-blur-surface);
   opacity: 1;
-  backdrop-filter: blur(9px) saturate(0.82);
-  -webkit-backdrop-filter: blur(9px) saturate(0.82);
+  backdrop-filter: blur(2px) saturate(0.82);
+  -webkit-backdrop-filter: blur(2px) saturate(0.82);
   background: radial-gradient(
     ellipse 54% 62% at 50% 50%,
     transparent 0%,

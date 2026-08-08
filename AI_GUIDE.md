@@ -22,6 +22,34 @@ npm run build
 npm run preview
 ```
 
+## Cambios Recientes: Estabilidad Móvil
+
+La versión móvil conserva la composición y la animación del cilindro, pero
+reduce de forma selectiva las capas HTML que debe componer el navegador.
+Esto evita artefactos gráficos, fuentes de reserva y parpadeos en Chrome y
+Brave para Android.
+
+- En pantallas de hasta `720px`, `App.tsx` usa un `dpr` de `1`. En escritorio
+  mantiene el rango `dpr={[1, 2]}`.
+- `Scene.tsx` calcula la columna frontal según la rotación real del cilindro y
+  clasifica cada celda en tres estados (`visible` / `buffer` / `hidden`) según
+  la distancia al frente. Hay cinco columnas visibles (`≤2`) y dos columnas
+  buffer a cada lado (`3-4`) que permanecen montadas con `visibility:hidden`
+  para conservar el bitmap decoded. Resultado: ~45 tarjetas HTML en móvil en
+  lugar de las 160 que componía antes.
+- Los `PhotoNode` siguen existiendo y se actualizan en Three.js aunque su
+  tarjeta esté fuera de cámara. La prop `visibilityState` controla solo el
+  subtree `Html`: `hidden` lo desmonta, `buffer` lo mantiene oculto y
+  `visible` lo muestra. Por eso una foto vuelve a pantalla ya posicionada y
+  sin el parpadeo de una reanimación desde el centro.
+- Las fuentes originales son locales: `public/fonts/grenze-gotisch-latin.woff2`
+  y `public/fonts/unifraktur-cook-latin.woff2`. `main.css` las declara con
+  `@font-face`; no reintroducir enlaces a Google Fonts en `index.html`.
+
+Para comprobar este comportamiento, probar a `390 × 844px`, esperar a que
+termine el loader y dejar girar el cilindro. Las fotografías deben entrar y
+salir de cuadro sin destellos ni sustitución de tipografía.
+
 ## Arquitectura
 
 ```text
@@ -46,6 +74,8 @@ src/
 ├─ utils/layout.ts                 # posiciones del cilindro
 ├─ assets/photos/                  # imágenes locales
 └─ styles/main.css                 # toda la interfaz HTML
+public/
+└─ fonts/                           # tipografías góticas autocontenidas
 ```
 
 ## App.tsx
@@ -89,7 +119,7 @@ Responsable de:
 Variables:
 
 ```ts
-const INTRO_DURATION = 1.6;
+const INTRO_DURATION = 2.4;
 const FINAL_ROTATION_SPEED = 0.16;
 ```
 
@@ -102,18 +132,34 @@ Geometría actual:
 
 ```ts
 FOCAL_POSITION = [0, 0, -23]
+MOBILE_FOCAL_POSITION = [0, 0, -31]
 CYLINDER_COLUMNS = 28
-radius = 26
+radius = 26 (desktop) / 30 (mobile)
 ```
 
 En `Scene.tsx`:
 
 ```ts
-const cylinderCount = Math.max(112, photos.length);
+const cylinderCount = Math.max(
+  isMobile ? cylinderColumns * 5 : cylinderColumns * 4,
+  photos.length
+);
 ```
 
-Esto crea 28 columnas y 4 filas. Si faltan imágenes, se reutilizan de manera
-determinista para cerrar el cilindro.
+Esto crea 28 columnas y 4 filas en escritorio, 32 columnas y 5 filas en
+móvil. Si faltan imágenes, se reutilizan de manera determinista para cerrar
+el cilindro.
+
+Aunque el cilindro tenga hasta 160 nodos, solo se mantienen tarjetas HTML
+montadas en el arco cercano a la cámara. Las constantes en `Scene.tsx`
+controlan el alcance:
+
+```ts
+const MOBILE_VISIBLE_COLUMN_RADIUS = 2;  // 5 columnas visibles
+const MOBILE_BUFFER_COLUMN_RADIUS = 4;   // 2 columnas buffer por lado
+```
+
+El resto de los nodos continúa actualizándose en 3D pero sin `<Html>`.
 
 Para cambiar la distribución:
 
@@ -122,6 +168,8 @@ Para cambiar la distribución:
 - Filas: `cylinderCount / CYLINDER_COLUMNS`.
 - Espaciado vertical: `rowGap`.
 - Orden de entrada: `createCylinderIntroRanks`.
+- Arco visible móvil: `MOBILE_VISIBLE_COLUMN_RADIUS`.
+- Buffer móvil: `MOBILE_BUFFER_COLUMN_RADIUS`.
 
 ## PhotoNode.tsx
 
@@ -133,10 +181,20 @@ Características:
 - Proporción 4:5.
 - Tamaño base actual: `224 × 280px`.
 - Zona de captura fija `.photo-hit`.
+- `<img>` con `decoding="async"` (no `loading="lazy"`, porque las tarjetas
+  buffer deben poder decodificar antes de entrar en el arco visible).
 - Hover visual sin cambiar la zona de captura.
 - Click para abrir la tarjeta focal.
 - Retorno a una sola celda frontal.
-- Iluminación CSS calculada según la lámpara.
+- Iluminación CSS calculada según la lámpara. La opacidad de la tarjeta y
+  los valores de `--photo-brightness` / `--photo-lamp-glow` se actualizan
+  cada frame; no reintroducir throttles globales porque producen un desfase
+  visible entre la rotación y la luz.
+- La prop `visibilityState` (`'visible' | 'buffer' | 'hidden'`) controla solo
+  el subtree `Html`: `hidden` lo desmonta, `buffer` lo mantiene oculto
+  mediante `visibility:hidden` (sin re-paint) y `visible` lo muestra. El
+  grupo 3D permanece montado en los tres estados. Usar este mecanismo para
+  ocultar contenido fuera de cámara sin reiniciar la animación del grupo.
 
 Cambiar tamaño:
 
@@ -182,6 +240,11 @@ dark: 0.14
 light: 0.07
 ```
 
+Los `uniforms` se crean con `useMemo` para que su identidad sea estable
+entre renders; el cambio de tema muta los valores en `useEffect`. Esto
+evita que R3F recompile el programa del shader al alternar entre dark y
+light.
+
 ### Lámpara
 
 Está en `Scene.tsx`:
@@ -218,12 +281,20 @@ Variables:
 El modo claro utiliza aproximadamente la mitad de opacidad que el modo
 oscuro.
 
+La capa `.focus-lens-blur` (que aparece al abrir una foto focal) usa
+`backdrop-filter: blur(2px) saturate(0.82)`. No elevar este valor: cada
+frame de la animación fuerza re-rasterización del canvas WebGL detrás.
+
 ## Cámara
 
 `CameraRig.tsx` mantiene la cámara fija en el centro del cilindro.
 
 El mouse no cambia la cámara. Solo afecta hover, click, cursor y no debe
 volver a conectarse a la posición de la cámara sin una decisión explícita.
+
+El frame loop hace early-return cuando la cámara ya está en el objetivo
+(epsilon `1e-6`) y el breakpoint de viewport no ha cambiado. Sólo se vuelve
+a ejecutar `lookAt` cuando cambia el ancho o el primer frame.
 
 ## GallerySection.tsx
 
@@ -268,6 +339,12 @@ mix-blend-mode: difference;
 El cursor del sistema se oculta en escritorio y se restaura en dispositivos
 táctiles.
 
+En `App.tsx` el componente se monta sólo cuando `useCompactViewport()` es
+`false`. Esto evita registrar listeners `pointermove` (que con
+`will-change: transform` fuerzan re-rasterización del canvas) en cualquier
+viewport ≤720px. El `@media (pointer: coarse)` de `main.css` se mantiene
+como defensa adicional.
+
 ### Brand.tsx
 
 George Array está centrado, flota suavemente y sube al seleccionar una foto.
@@ -280,6 +357,10 @@ font-size: clamp(38px, 5.5vw, 82px);
 
 La fuente es `UnifrakturCook` y usa borde blanco con
 `mix-blend-mode: difference`.
+
+El desplazamiento vertical al enfocar se hace con `transform: translateY()`
+dentro de un `motion.div`, no animando `top`. Esto evita el layout-shift
+(reflow) que se produce dentro de `.main-layer`, que envuelve el `Canvas`.
 
 ## Música
 
@@ -306,10 +387,28 @@ No utilizar rutas absolutas de Windows en código fuente.
 
 ## Reglas De Rendimiento
 
-- Mantener `dpr={[1, 2]}`.
+- En móvil mantener `dpr={1}` y en escritorio `dpr={[1, 2]}` mediante
+  `useCompactViewport` en `App.tsx`.
+- Mantener `visibilityState` para ocultar tarjetas: `buffer` (`visibility:hidden`)
+  o `hidden` (unmount del `<Html>`). No usar `return null` dentro del `map`
+  de `Scene.tsx` para filtrar tarjetas, porque desmonta el grupo 3D y
+  reinicia su animación.
+- Mantener el `visibilityState` de la tarjeta de retorno a `'visible'`
+  aunque caiga en el rango de buffer: el cilindro y `mobileFrontColumn`
+  están desfasados un frame durante el cierre del focal.
+- No cargar las fuentes desde un tercero; deben permanecer en `public/fonts/`.
 - Mantener Gallery con `frameloop="demand"`.
 - No añadir loops `useFrame` a capas estáticas.
-- No animar la iluminación de todas las tarjetas en cada frame.
+- La opacidad y las variables CSS de iluminación de cada tarjeta se
+  actualizan cada frame; no reintroducir throttles globales ni filtros tipo
+  `% N === 0` en el frame loop.
+- `CameraRig` debe hacer early-return cuando la cámara está en el objetivo;
+  no ejecutar `lookAt` cada frame si la posición y el breakpoint no han
+  cambiado.
+- Los `uniforms` de `ReactiveBackdrop` deben permanecer estables
+  (`useMemo`) para no forzar recompilación del shader al cambiar tema.
+- El `CursorLens` se monta sólo en viewport no compacto; no añadir
+  condicionales dentro del propio componente, dejar el control en `App.tsx`.
 - Mantener la zona de captura independiente del escalado visual.
 - Después de cualquier cambio ejecutar:
 

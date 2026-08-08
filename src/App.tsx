@@ -131,7 +131,7 @@ export default function App(): JSX.Element {
           onNavigate={setView}
         />
       )}
-      <CursorLens />
+      {!compactViewport && <CursorLens />}
     </div>
   );
 }

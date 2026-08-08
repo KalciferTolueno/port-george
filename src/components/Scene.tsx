@@ -23,6 +23,10 @@ const FOCAL_SCALE = 1.8;
 // frame, without asking the mobile compositor to maintain 160 transformed
 // HTML layers that are physically behind the camera.
 const MOBILE_VISIBLE_COLUMN_RADIUS = 2;
+// Cards within the buffer radius stay mounted with their `<img>` decoded but
+// are hidden via CSS. This keeps the bitmap warm so cards entering the
+// visible arc do not pop in while the browser re-decodes the JPEG.
+const MOBILE_BUFFER_COLUMN_RADIUS = 4;
 
 interface SceneProps {
   onFocusChange: (index: number | null) => void;
@@ -282,12 +286,22 @@ export function Scene({ onFocusChange, theme, introReady, paused }: SceneProps):
             Math.abs(column - mobileFrontColumn),
             cylinderColumns - Math.abs(column - mobileFrontColumn)
           );
-          const showCard = !isMobile || columnDistance <= MOBILE_VISIBLE_COLUMN_RADIUS;
           const photo = photos[photoIndex];
           const entry = layout[slot] ?? layout[0];
           const isReturning = photoIndex === returningIndex && slot === returningSlot;
           const isReturningCopy = photoIndex === returningIndex;
           const isInstantRestore = photoIndex === instantRestoreIndex;
+          // The returning slot must always remain visible: while the focal
+          // image closes, mobileFrontColumn is one React frame behind the
+          // true rotation, so the slot may briefly fall into buffer or
+          // hidden if we relied on the column radius alone.
+          const visibilityState: 'visible' | 'buffer' | 'hidden' = isReturning
+            ? 'visible'
+            : !isMobile || columnDistance <= MOBILE_VISIBLE_COLUMN_RADIUS
+              ? 'visible'
+              : columnDistance <= MOBILE_BUFFER_COLUMN_RADIUS
+                ? 'buffer'
+                : 'hidden';
           return (
             <PhotoNode
               key={`cylinder-${slot}-${photo.src}`}
@@ -301,7 +315,7 @@ export function Scene({ onFocusChange, theme, introReady, paused }: SceneProps):
               introIndex={introSequence.rankBySlot[slot] ?? -1}
               introTotal={introSequence.total}
               paused={paused}
-              showCard={showCard}
+              visibilityState={visibilityState}
               initialPosition={isReturning
                 ? focalPosition
                 : isReturningCopy || isInstantRestore

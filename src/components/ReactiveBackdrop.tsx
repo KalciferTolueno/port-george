@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { Theme } from '../types';
 
@@ -36,6 +36,17 @@ export function ReactiveBackdrop({ theme }: ReactiveBackdropProps): JSX.Element 
   const groupRef = useRef<THREE.Group>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
 
+  // Keep the uniforms object identity stable across renders so R3F does not
+  // recompile the shader program every time `theme` changes. The values are
+  // mutated through the effect below.
+  const uniforms = useMemo(
+    () => ({
+      uColor: { value: new THREE.Color() },
+      uIntensity: { value: 0 }
+    }),
+    []
+  );
+
   useEffect(() => {
     if (!materialRef.current) return;
     materialRef.current.uniforms.uColor.value.set(
@@ -56,10 +67,7 @@ export function ReactiveBackdrop({ theme }: ReactiveBackdropProps): JSX.Element 
           depthTest={false}
           depthWrite={false}
           blending={THREE.AdditiveBlending}
-          uniforms={{
-            uColor: { value: new THREE.Color(theme === 'dark' ? '#d3a064' : '#617894') },
-            uIntensity: { value: theme === 'dark' ? 0.14 : 0.07 }
-          }}
+          uniforms={uniforms}
         />
       </mesh>
     </group>
