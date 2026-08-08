@@ -9,22 +9,33 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Runtime stage: serve the static bundle with `serve` (SPA fallback + gzip).
-# EasyPanel handles the public HTTPS proxy, so we don't need nginx in here.
+# Runtime stage: a small Express server with a /health endpoint.
+# EasyPanel terminates TLS in front of the container, so plain HTTP is fine.
+#
+# `dumb-init` runs as PID 1 so SIGTERM (sent by Docker before stop/restart)
+# is forwarded to the Node process; the server then closes its socket and
+# exits cleanly. Without it, the kernel would kill the Node process and
+# in-flight requests would 502.
 FROM node:22-alpine
+
+RUN apk add --no-cache dumb-init
 
 WORKDIR /app
 
-RUN npm install -g serve@14
+# Install only runtime deps (Express). Reuse the lockfile from the build.
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 
 COPY --from=build /app/dist ./dist
+COPY server.mjs ./
 
 ENV PORT=3000
 EXPOSE 3000
 
+# Healthcheck against the dedicated endpoint. EasyPanel also probes this
+# path; a 200 keeps the container in the proxy pool.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/ || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/health || exit 1
 
-# `-s` rewrites every request to index.html (SPA fallback),
-# `-l $PORT` listens on the port EasyPanel forwards to.
-CMD ["serve", "-s", "dist", "-l", "3000", "--no-clipboard"]
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "server.mjs"]

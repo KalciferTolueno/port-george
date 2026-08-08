@@ -53,10 +53,14 @@ of the running app are unnecessary — back up the GitHub repo instead.
 
 ## Notes on the runtime
 
-- The image uses `node:22-alpine` (~150 MB) instead of the previous
-  `nginx:1.27-alpine` (~40 MB) + Node build stage. The total image is
-  similar, but the runtime no longer needs an nginx config layer.
-- `serve@14` is installed globally inside the runtime image. The SPA
-  fallback flag (`-s`) rewrites any unknown path to `index.html`.
+- The image uses `node:22-alpine` + `dumb-init` (PID 1) + a small
+  `server.mjs` (Express) that serves the static bundle and exposes a
+  dedicated `/health` endpoint.
 - EasyPanel terminates TLS in front of the container, so the server only
-  has to speak plain HTTP on port `3000`.
+  speaks plain HTTP on port `3000`.
+- The Docker `HEALTHCHECK` pings `http://127.0.0.1:3000/health`. Point
+  EasyPanel's own healthcheck at the same path so the container stays in
+  the proxy pool.
+- `dumb-init` ensures SIGTERM from Docker/EasyPanel reaches Node, so the
+  server can close its socket and exit cleanly instead of being killed
+  mid-request.
